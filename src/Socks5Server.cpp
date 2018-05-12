@@ -8,10 +8,12 @@
 #include <iostream>
 #include <thread>
 #include <string.h>
+#include "log.h"
 
 #include "Socks5Client.h"
 #include "Select.h"
 #include <arpa/inet.h>
+#include "netcommon.h"
 
 using namespace std;
 
@@ -21,7 +23,7 @@ void Socks5Server::setSignalHandlers() {
     signal(SIGPIPE, SIG_IGN);
     sigset_t mask;
     sigemptyset(&mask);
-    for (auto signo : {SIGINT, SIGQUIT, SIGALRM}) {
+    for (auto signo : {SIGINT, SIGQUIT, SIGALRM, SIGUSR1}) {
         sigaddset(&mask, signo);
     }
     alarm(cAlarmInterval);
@@ -71,6 +73,19 @@ bool Socks5Server::handleAlarm() {
     return true;
 }
 
+void Socks5Server::sigUSR1() {
+    clog << "## Externally resolved hosts in /etc/hosts format" << endl;
+    for (const auto& pair : mExternalDnsCache) {
+        clog << pair.first << "   ";
+        for (const auto& address : pair.second) {
+            clog  << " " << ipv4ToDotted(&address);
+        }
+        clog << endl;
+
+    }
+    clog << "# End" << endl;
+}
+
 void Socks5Server::handleSignal() {
     struct signalfd_siginfo fdsi;
     int ret;
@@ -82,6 +97,9 @@ void Socks5Server::handleSignal() {
         if (handleAlarm()) {
             alarm(cAlarmInterval);
         }
+        break;
+    case SIGUSR1:
+        sigUSR1();
         break;
     default:
         clog << "Signal "  << strsignal(fdsi.ssi_signo) << endl;
@@ -95,9 +113,9 @@ void Socks5Server::handleNewIncomingConnection() {
     auto fd = acceptClient(clientAddress);
     auto pipeWriteFd = mPipe[1];
     auto config = mConfig;
-    std::thread{[fd, pipeWriteFd, clientAddress, config]() {
+    std::thread{[this, fd, pipeWriteFd, clientAddress, config]() {
             try {
-                std::unique_ptr<Socks5Client> client{new Socks5Client{config, fd, clientAddress}};
+                std::unique_ptr<Socks5Client> client{new Socks5Client{config, *this, fd, clientAddress}};
                 if (client->negotiate()) {
                     auto clientRaw = client.release();
                     if (write(pipeWriteFd, &clientRaw, sizeof clientRaw) != sizeof clientRaw) {
@@ -165,4 +183,8 @@ int Socks5Server::acceptClient(struct sockaddr_in& client) {
     if (client_fd < 0)
         throw NetworkError{"Could not listen on port"};
     return client_fd;
+}
+
+void Socks5Server::registerDnsEntry(const std::string& hostname, const std::vector<in_addr_t>& addressList) {
+   mExternalDnsCache[hostname] = addressList;
 }

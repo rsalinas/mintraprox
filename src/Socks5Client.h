@@ -8,9 +8,11 @@
 #include <arpa/inet.h>
 #include "Config.h"
 
+class Socks5Server;
+
 class Socks5Client {
 public:
-    Socks5Client(const Config& config, int fd, const struct sockaddr_in& clientAddress) : mConfig(config), clientEndpoint(fd), mClientAddress(clientAddress) {
+    Socks5Client(const Config& config, Socks5Server& s5server, int fd, const struct sockaddr_in& clientAddress) : mConfig(config), mS5server(s5server), clientEndpoint(fd), mClientAddress(clientAddress) {
     }
 
     void addSelectWatches(Select& select);
@@ -19,6 +21,7 @@ public:
 
 private:
     const Config mConfig;
+    Socks5Server& mS5server;
     enum ConnectionState {
         STATE_RECEIVING_AUTH_OFFER,
         ANSWERING_AUTH,

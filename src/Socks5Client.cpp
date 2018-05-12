@@ -14,10 +14,10 @@
 
 #include "log.h"
 #include "resolve.h"
+#include "Socks5Server.h"
+#include "netcommon.h"
 
 using namespace std;
-
-
 
 bool setLinger(int fd, bool enabled, int seconds);
 
@@ -117,6 +117,10 @@ void Socks5Client::connectToHostname() {
         addrs = resolveDirect(hostname);
         if (addrs.empty()) {
             addrs = resolveAlt(mConfig.secondaryDns, hostname);
+            if (addrs.size()) {
+                mS5server.registerDnsEntry(hostname, addrs);
+
+            }
         }
         if (!addrs.empty()) {
             //            clog << "Hostname resolved: " << hostname << " -> " << ipv4ToDotted(&addr);
@@ -311,6 +315,7 @@ bool Socks5Client::EndPoint::sendData() {
 
 
 bool Socks5Client::onData(char ch) {
+    //this is dead code at the moment
     int n= 0;
     int pos = 0;
     ClientInitialSalutation cr;

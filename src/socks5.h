@@ -108,40 +108,6 @@ struct ServerResponse {
     uint16_t port;
 };
 
-
-class NetworkError : public std::exception  {
-public:
-    NetworkError(const char* s) : mMessage(s) {
-
-    }
-    NetworkError(const std::string& s) : mMessage(s) {
-
-    }
-    const char* what() const noexcept {
-        return mMessage.c_str();
-    }
-
-private:
-    const std::string mMessage;
-};
-
-class ClientProtocolException : public std::exception  {
-public:
-    ClientProtocolException(const char* s) : mMessage(s) {
-
-    }
-    ClientProtocolException(const std::string& s) : mMessage(s) {
-
-    }
-    const char* what() const noexcept {
-        return mMessage.c_str();
-    }
-
-private:
-    const std::string mMessage;
-};
-
-
 class WrongRequestException : public std::exception  {
 public:
     WrongRequestException(ServerResponse::ConnectionState socks5state, const char* s)
