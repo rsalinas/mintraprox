@@ -19,6 +19,16 @@ using namespace std;
 
 static const int cAlarmInterval = 60;
 
+int syscallToExcept(int result, const std::string& msg) {
+    int savedErrno = errno;
+    if (result < 0) {
+        throw NetworkError{msg + ": " + strerror(savedErrno)};
+    }
+        //    clog << "Connection from " << ipv4ToDotted(&client.sin_addr) << endl;
+    return result;
+}
+
+
 void Socks5Server::setSignalHandlers() {
     signal(SIGPIPE, SIG_IGN);
     sigset_t mask;
@@ -30,15 +40,14 @@ void Socks5Server::setSignalHandlers() {
 
     if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1)
         throw NetworkError("sigprocmask");
-    mSignalFd = signalfd(-1, &mask, 0);
+    mSignalFd = syscallToExcept(signalfd(-1, &mask, 0),
+                                "signalfd");
 }
 
 Socks5Server::Socks5Server(const Config& config)
-    : server_fd(socket(AF_INET, SOCK_STREAM, 0)), mConfig(config)
+    : server_fd(syscallToExcept(socket(AF_INET, SOCK_STREAM, 0), "Could not create socket"))
+    , mConfig(config)
 {
-    if (server_fd < 0) {
-        throw NetworkError{"Could not create socket"};
-    }
     setSignalHandlers();
 
     if (pipe(mPipe) < 0) {
@@ -49,11 +58,9 @@ Socks5Server::Socks5Server(const Config& config)
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config.port);
+    server.sin_addr.s_addr = htonl(config.bindToLocalhost ? INADDR_LOOPBACK : INADDR_ANY);
 
-    // TODO: bind to localhost?
-    server.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    int opt_val = 1;
+    static const int opt_val = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof opt_val);
 
     if (bind(server_fd, (struct sockaddr *) &server, sizeof(server)) != 0)
@@ -69,7 +76,8 @@ Socks5Server::~Socks5Server() {
 }
 
 bool Socks5Server::handleAlarm() {
-    clog << "ALARM!" << endl;
+    //    clog << "ALARM!" << endl;
+    // TODO check for stale connections etc
     return true;
 }
 
@@ -178,11 +186,8 @@ void Socks5Server::run() {
 
 int Socks5Server::acceptClient(struct sockaddr_in& client) {
     socklen_t client_len = sizeof(client);
-    int client_fd = accept(server_fd, (struct sockaddr *) &client, &client_len);
-//    clog << "Connection from " << ipv4ToDotted(&client.sin_addr) << endl;
-    if (client_fd < 0)
-        throw NetworkError{"Could not listen on port"};
-    return client_fd;
+    return syscallToExcept(accept(server_fd, (struct sockaddr *) &client, &client_len),
+                           "Could not accept new connection");
 }
 
 void Socks5Server::registerDnsEntry(const std::string& hostname, const std::vector<in_addr_t>& addressList) {

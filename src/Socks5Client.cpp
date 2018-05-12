@@ -1,7 +1,6 @@
 #include "Socks5Client.h"
 
 #include <algorithm>
-
 #include <fcntl.h>
 #include <iostream>
 #include <map>
@@ -11,6 +10,7 @@
 #include <strings.h>
 #include <unistd.h>
 #include <vector>
+#include <chrono>
 
 #include "log.h"
 #include "resolve.h"
@@ -107,8 +107,13 @@ void Socks5Client::connectToHostname() {
         throw ClientProtocolException("no host name");
     }
 
-    //    clog << ipv4ToDotted(&mClientAddress.sin_addr) << ":" << mClientAddress.sin_port << ": Connecting to host: " << hostname << ":" << port << endl;
+    if (mConfig.verbosity)
+        clog << ipv4ToDotted(&mClientAddress.sin_addr) << ":" << mClientAddress.sin_port << ": Connecting to host: " << hostname << ":" << port << endl;
     static AddressCache addressCache;
+
+    using namespace std::chrono;
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+
 
     std::vector<in_addr_t> addrs = addressCache.get(hostname);
     if (addrs.size()) {
@@ -126,6 +131,9 @@ void Socks5Client::connectToHostname() {
             //            clog << "Hostname resolved: " << hostname << " -> " << ipv4ToDotted(&addr);
         }
     }
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
+    double dif = duration_cast<milliseconds>( t2 - t1 ).count();
+    fprintf (stderr, "Cost of DNS resolving: %lf\n", dif );
 
     if (addrs.empty()) {
         //        clog << "Unknown host " << hostname << endl;
@@ -197,7 +205,7 @@ bool Socks5Client::negotiate() {
         return false;
     }
     sendReqResponse(ServerResponse::STATE_SUCCESS, cr);
-    if (fcntl(clientEndpoint.fd, F_SETFL, fcntl(clientEndpoint.fd, F_GETFL, 0)| O_NONBLOCK) < 0) {
+    if (fcntl(clientEndpoint.fd, F_SETFL, fcntl(clientEndpoint.fd, F_GETFL, 0) | O_NONBLOCK) < 0) {
         throw NetworkError{"Cannot set non-block on socket"};
     }
     setLinger(clientEndpoint.fd, true, 3);

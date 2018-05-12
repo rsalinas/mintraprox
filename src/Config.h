@@ -5,9 +5,11 @@
 struct Config {
     Config(const char* progName);
 
-    const char*const mProgName;
+    const char * const mProgName;
     bool enterServiceLoop = true;
+    bool bindToLocalhost = true;
     int port = 1080;
+    int verbosity = 0;
     std::string secondaryDns;
 
     bool parse(char **argv);

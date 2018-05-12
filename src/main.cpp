@@ -1,20 +1,16 @@
-#include "Socks5Server.h"
 #include <iostream>
-#include <fstream>
+
+#include "Socks5Server.h"
 
 using namespace std;
-
-std::string readFile(const std::string& fn) {
-    std::ifstream t(fn);
-    return std::string{(std::istreambuf_iterator<char>(t)),
-                std::istreambuf_iterator<char>()};
-}
 
 int main(int, char **argv)
 {
     try {
         Config config{argv[0]};
-        config.parse(argv+1);
+        if (!config.parse(argv+1)) {
+            return EXIT_FAILURE;
+        }
 
         if (config.enterServiceLoop) {
             config.print();
